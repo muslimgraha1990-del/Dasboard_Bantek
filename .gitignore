@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+bantek.db*
+~$*
+*.xlsx
+!Monitoring Bantuan Teknis - Ringkasan_KOREKTOR_3.xlsx

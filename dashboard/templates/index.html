@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Laporan Bantuan Teknis UPJKP</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f6f9;
+            color: #212529;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: #ffffff;
+            padding: 16px 26px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 3px solid #17a2b8;
+            box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.075);
+        }
+        .logo {
+            width: 58px; height: 58px; border-radius: 14px;
+            background: linear-gradient(135deg, #17a2b8, #0d9488);
+            border: none;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .logo svg { width: 34px; height: 34px; }
+        .header-text { flex: 1; }
+        .header-text h1 { font-size: 1.45rem; font-weight: 800; letter-spacing: 0.5px; color: #212529; }
+        .header-text .subtitle { font-size: 0.8rem; color: #6c757d; margin-top: 2px; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .login-pill { font-size: 0.76rem; padding: 6px 13px; border-radius: 20px; font-weight: 600; }
+        .login-pill.in { background: #d4edda; color: #155724; }
+        .login-pill.out { background: #e9ecef; color: #495057; }
+
+        .btn { padding: 8px 15px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 700; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-teal { background: #17a2b8; color: #fff; }
+        .btn-teal:hover:not(:disabled) { background: #138496; }
+        .btn-outline { background: #ffffff; color: #495057; border: 1px solid #ced4da; }
+        .btn-outline:hover:not(:disabled) { background: #f8f9fa; }
+        .btn-dark { background: #343a40; color: #fff; }
+        .btn-warn { background: #ffc107; color: #212529; }
+        .btn-red { background: #dc3545; color: #fff; }
+        .btn-sm { padding: 5px 10px; font-size: 0.72rem; }
+
+        .layout, .view {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            padding: 18px 26px;
+            max-width: 1900px;
+            margin: 0 auto;
+            align-items: stretch;
+        }
+        .view.hidden { display: none; }
+
+        .panel { background: #ffffff; border-radius: 4px; border: 1px solid #dee2e6; padding: 14px; box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.075); }
+        .panel-title {
+            font-size: 0.76rem; color: #495057; text-transform: uppercase; letter-spacing: 1px; font-weight: 800;
+            margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;
+        }
+
+        /* LEFT : data input */
+        .lock-banner {
+            background: #e3f2fd; border: 1px solid #17a2b8; border-radius: 4px; padding: 9px 12px;
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+        }
+        .lock-banner .msg { font-size: 0.74rem; color: #0c5460; }
+
+        .input-kalimat {
+            width: 100%; padding: 11px 13px; border-radius: 4px; border: 1px solid #ced4da;
+            background: #ffffff; color: #212529; font-size: 0.9rem; font-family: inherit; resize: vertical;
+        }
+        .input-kalimat:focus { outline: none; border-color: #17a2b8; box-shadow: 0 0 0 0.2rem rgba(23,162,184,.25); }
+        .input-kalimat::placeholder { color: #6c757d; }
+        .hint { font-size: 0.68rem; color: #6c757d; margin-top: 5px; }
+
+        .quick-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .quick-row select, .quick-row input {
+            width: 100%; padding: 8px 10px; border-radius: 4px; border: 1px solid #ced4da; background: #ffffff; color: #212529; font-size: 0.78rem;
+        }
+
+        .accordion-head {
+            width: 100%; display: flex; align-items: center; justify-content: space-between;
+            background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;
+            padding: 9px 12px; cursor: pointer; color: #495057; font-size: 0.74rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px;
+        }
+        .accordion-body { display: none; margin-top: 10px; }
+        .accordion-body.open { display: block; }
+        .accordion-head .arrow { transition: transform 0.2s; }
+        .accordion-head.open .arrow { transform: rotate(180deg); }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .fg label { display: block; font-size: 0.6rem; color: #495057; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; font-weight: 700; }
+        .fg input, .fg select, .fg textarea {
+            width: 100%; padding: 8px 10px; border-radius: 4px; border: 1px solid #ced4da;
+            background: #ffffff; color: #212529; font-size: 0.76rem;
+        }
+        .fg input:disabled, .fg select:disabled, .fg textarea:disabled { opacity: 0.5; }
+        .fg input:focus, .fg select:focus { outline: none; border-color: #17a2b8; box-shadow: 0 0 0 0.2rem rgba(23,162,184,.25); }
+        .fg.full { grid-column: 1 / -1; }
+        .form-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+        .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+        .toolbar select, .toolbar input {
+            padding: 7px 9px; border-radius: 4px; border: 1px solid #ced4da; background: #ffffff; color: #212529; font-size: 0.74rem;
+        }
+
+        .table-wrap { overflow-x: auto; max-height: 280px; overflow-y: auto; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+        .data-table th { background: #f8f9fa; color: #343a40; padding: 7px 5px; text-align: left; text-transform: uppercase; font-size: 0.62rem; position: sticky; top: 0; border-bottom: 1px solid #dee2e6; }
+        .data-table td { padding: 6px 5px; border-bottom: 1px solid #e9ecef; color: #212529; }
+        .data-table tr:hover td { background: #f1f3f5; }
+        .kode-cell { color: #007bff; font-weight: 700; white-space: nowrap; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; }
+        .badge-proses { background: #fff3cd; color: #856404; }
+        .badge-selesai { background: #d4edda; color: #155724; }
+
+        .pagination { display: flex; align-items: center; gap: 4px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+        .pagination button { padding: 5px 8px; border-radius: 4px; border: 1px solid #ced4da; background: #ffffff; color: #495057; cursor: pointer; font-size: 0.72rem; }
+        .pagination button.active { background: #17a2b8; color: #fff; border-color: #17a2b8; }
+        .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-info { color: #6c757d; font-size: 0.72rem; }
+
+        .korektor-line { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 0.74rem; color: #212529; }
+        .korektor-line .name { flex: 1; }
+
+        /* RIGHT : dashboard */
+        .dash-col { display: flex; flex-direction: column; gap: 14px; }
+        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+        .stat-card { border-radius: 4px; padding: 14px 16px; border: none; position: relative; overflow: hidden; box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.075); }
+        .stat-total { background: #17a2b8; }
+        .stat-selesai { background: #28a745; }
+        .stat-proses { background: #ffc107; }
+        .stat-persen { background: #dc3545; }
+        .stat-card .lab { font-size: 0.6rem; color: #ffffff; text-transform: uppercase; letter-spacing: 0.6px; opacity: .9; }
+        .stat-card .val { font-size: 1.6rem; font-weight: 800; margin-top: 2px; }
+        .stat-total .val { color: #ffffff; }
+        .stat-selesai .val { color: #ffffff; }
+        .stat-proses .val { color: #212529; }
+        .stat-persen .val { color: #ffffff; }
+        .stat-card .sub { font-size: 0.66rem; color: #f8f9fa; opacity: .9; }
+        .stat-proses .lab, .stat-proses .sub { color: #212529; }
+
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .chart-card { background: #ffffff; border-radius: 4px; border: 1px solid #dee2e6; padding: 11px; box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.075); }
+        .chart-card h4 { font-size: 0.68rem; color: #343a40; text-transform: uppercase; margin-bottom: 7px; font-weight: 700; }
+        .chart-card .box { position: relative; height: 190px; }
+        .chart-card.wide { grid-column: 1 / -1; }
+        .chart-card.wide .box { height: 170px; }
+
+        .progress-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.7rem; }
+        .progress-label { min-width: 80px; color: #212529; }
+        .progress-bg { flex: 1; height: 15px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 5px; font-size: 0.64rem; font-weight: 700; color: #fff; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 100; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #ffffff; border-radius: 4px; border: 1px solid #dee2e6; padding: 24px; width: 400px; max-width: 92%; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+        .modal h3 { color: #212529; margin-bottom: 6px; font-size: 1.1rem; }
+        .modal p { color: #6c757d; font-size: 0.78rem; margin-bottom: 14px; }
+        .modal input { width: 100%; padding: 10px 13px; border-radius: 4px; border: 1px solid #ced4da; background: #ffffff; color: #212529; font-size: 0.88rem; margin-bottom: 11px; }
+        .modal input:focus { outline: none; border-color: #17a2b8; box-shadow: 0 0 0 0.2rem rgba(23,162,184,.25); }
+        .err-msg { color: #dc3545; font-size: 0.78rem; margin-bottom: 10px; display: none; }
+
+        .toast { position: fixed; top: 20px; right: 20px; background: #28a745; color: #fff; padding: 11px 17px; border-radius: 4px; font-size: 0.83rem; display: none; box-shadow: 0 6px 20px rgba(0,0,0,0.2); z-index: 200; }
+        .toast.error { background: #dc3545; }
+
+        /* ================= ADMINLTE v2 SIDEBAR ================= */
+        .main-sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0; width: 230px;
+            background: #222d32; z-index: 1000; overflow-x: hidden;
+            box-shadow: 0 -10px 20px rgba(0,0,0,.25);
+        }
+        .sidebar { overflow-y: auto; height: 100%; }
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-thumb { background: #374850; }
+
+        .sidebar-brand {
+            height: 92px; display: flex; align-items: center; gap: 10px;
+            padding: 0 16px; background: #1a2226; border-bottom: 1px solid #2c3b41;
+        }
+        .sidebar-brand .brand-logo {
+            width: 44px; height: 44px; border-radius: 8px; background: #17a2b8;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .sidebar-brand .brand-logo svg { width: 26px; height: 26px; }
+        .sidebar-brand .brand-text { line-height: 1.25; }
+        .sidebar-brand .brand-text b { display: block; color: #ffffff; font-size: 0.95rem; letter-spacing: .3px; }
+        .sidebar-brand .brand-text small { color: #8aa4af; font-size: 0.68rem; }
+
+        .user-panel { padding: 14px 14px 8px; display: flex; align-items: center; gap: 10px; }
+        .user-panel .image { flex-shrink: 0; }
+        .pull-left { float: left; }
+        .user-panel .img-circle {
+            display: inline-block; border-radius: 50%; color: #fff;
+            font-weight: 700; font-size: 14px; line-height: 1; border: 2px solid rgba(255,255,255,.25);
+        }
+        .user-panel .bg-success { background: #00a65a; }
+        .user-panel .info { line-height: 1.35; overflow: hidden; }
+        .user-panel .info p { color: #ffffff; font-size: 0.9rem; margin: 0 0 2px; white-space: nowrap; }
+        .user-panel .info a { color: #8aa4af; font-size: 0.75rem; text-decoration: none; }
+        .user-panel .info a .fa { margin-right: 4px; }
+
+        .sidebar .text-success { color: #00a65a; }
+        .sidebar .text-muted { color: #8aa4af; }
+        .sidebar-form { padding: 10px 14px; }
+        .sidebar-form .input-group { display: flex; align-items: stretch; }
+        .sidebar-form input {
+            flex: 1; min-width: 0; background: #374850; border: 0; border-radius: 2px 0 0 2px;
+            color: #fff; padding: 8px 12px; font-size: 0.84rem; font-family: inherit;
+        }
+        .sidebar-form input::placeholder { color: #8aa4af; }
+        .sidebar-form input:focus { outline: none; }
+        .sidebar-form button {
+            background: #374850; border: 0; border-radius: 0 2px 2px 0; color: #8aa4af;
+            padding: 0 13px; cursor: pointer; font-size: 0.9rem;
+        }
+        .sidebar-form button:hover { color: #fff; }
+
+        .sidebar-menu { list-style: none; margin: 0; padding: 0 0 20px; }
+        .sidebar-menu > li.header {
+            color: #4b646f; font-size: 0.72rem; letter-spacing: 1px; text-transform: uppercase;
+            padding: 12px 14px 5px; font-weight: 700;
+        }
+        .sidebar-menu > li > a {
+            display: flex; align-items: center; gap: 8px; color: #b8c7ce;
+            padding: 11px 5px 11px 15px; font-size: 0.85rem; text-decoration: none;
+            border-left: 3px solid transparent; transition: background .15s, color .15s;
+        }
+        .sidebar-menu > li > a:hover { background: #1e282c; color: #fff; }
+        .sidebar-menu > li.active > a { background: #1e282c; color: #fff; border-left-color: #3c8dbc; }
+        .sidebar-menu > li.active > a .pull-right-container, .sidebar-menu > li.open > a .pull-right-container { display: none; }
+        .sidebar-menu .fa { width: 18px; text-align: center; color: #607d8b; }
+        .sidebar-menu > li > a:hover .fa, .sidebar-menu > li.active > a .fa { color: #fff; }
+        .sidebar-menu .pull-right-container { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; }
+        .sidebar-menu .pull-right { float: right; }
+        .sidebar-menu .fa-angle-left { transition: transform .2s; font-weight: 400; }
+        .sidebar-menu li.open > a > .pull-right-container .fa-angle-left { transform: rotate(-90deg); }
+
+        .treeview-menu {
+            display: none; list-style: none; margin: 0; padding: 0 0 0 0;
+            background: rgba(0,0,0,.1);
+        }
+        .sidebar-menu li.open > .treeview-menu { display: block; }
+        .treeview-menu > li > a {
+            display: block; color: #8aa4af; padding: 9px 5px 9px 41px; font-size: 0.8rem;
+            text-decoration: none; border-left: 3px solid transparent;
+        }
+        .treeview-menu > li > a:hover { color: #fff; background: #1e282c; }
+        .treeview-menu > li.active > a { color: #fff; border-left-color: #3c8dbc; }
+        .treeview-menu .fa-circle-o { color: #8aa4af; font-size: 0.45rem; margin-right: 4px; width: 12px; }
+
+        .s-label {
+            display: inline-block; padding: 1px 7px; border-radius: 3px;
+            font-size: 0.66rem; font-weight: 700; color: #fff; line-height: 1.5;
+        }
+        .s-blue { background: #337ab7; }
+        .s-green { background: #00a65a; }
+        .s-orange { background: #f39c12; }
+        .s-red { background: #dd4b39; }
+        .s-small { font-size: 0.62rem; padding: 0 5px; }
+
+        .sidebar-toggle-btn {
+            background: none; border: 1px solid #ced4da; border-radius: 4px; color: #495057;
+            padding: 6px 9px; cursor: pointer; font-size: 0.9rem; margin-right: 4px;
+        }
+        .sidebar-toggle-btn:hover { background: #f8f9fa; }
+
+        body.sidebar-collapsed .main-sidebar { transform: translateX(-230px); }
+        body.sidebar-collapsed .header, body.sidebar-collapsed .content-wrapper { margin-left: 0; }
+        .main-sidebar { transition: transform .25s; }
+        .header, .content-wrapper { transition: margin-left .25s; }
+    </style>
+</head>
+<body>
+    <!-- ======== ADMINLTE v2 SIDEBAR ======== -->
+    <aside class="main-sidebar" id="mainSidebar">
+        <section class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-6"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <b>Monitoring Bantek</b>
+                    <small>UPJKP - PTPN IV</small>
+                </div>
+            </div>
+
+            <div class="user-panel">
+                <div class="pull-left image">
+                    <span class="img-circle bg-success" style="padding:10px;">MN</span>
+                </div>
+                <div class="pull-left info">
+                    <p>Muslim Nugraha</p>
+                    <a href="#" id="sideUserStatus"><i class="fa fa-circle text-success"></i> Online</a>
+                </div>
+            </div>
+
+            <form class="sidebar-form" action="#" onsubmit="return false">
+                <div class="input-group">
+                    <input type="text" placeholder="Search...">
+                    <button type="submit" title="Cari"><i class="fa fa-search"></i></button>
+                </div>
+            </form>
+
+            <ul class="sidebar-menu">
+                <li class="header">Main Navigation</li>
+                <li class="active" data-view="dashboard">
+                    <a href="#"><i class="fa fa-tachometer"></i> <span>Dashboard</span></a>
+                </li>
+                <li data-view="input">
+                    <a href="#"><i class="fa fa-edit"></i> <span>Input / Update Data</span></a>
+                </li>
+                <li data-view="daftar">
+                    <a href="#"><i class="fa fa-table"></i> <span>Daftar &amp; Lacak Laporan</span></a>
+                </li>
+            </ul>
+        </section>
+    </aside>
+
+    <div class="header" style="margin-left:230px">
+        <button class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar"><i class="fa fa-bars"></i></button>
+        <div class="logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-6"/>
+            </svg>
+        </div>
+        <div class="header-text">
+            <h1>Monitoring Laporan Bantuan Teknis UPJKP</h1>
+            <div class="subtitle">Urusan Pelayanan Jasa Konsultansi dan Pelatihan — PTPN IV</div>
+        </div>
+        <div class="header-right">
+            <span class="login-pill out" id="loginPill">Belum Login</span>
+            <button class="btn btn-outline" id="loginToggleBtn" onclick="toggleLogin()">Login untuk Edit</button>
+        </div>
+    </div>
+
+    <div class="content-wrapper" style="margin-left:230px" id="contentWrapper">
+        <!-- ======== VIEW : INPUT / UPDATE DATA ======== -->
+        <div class="view hidden" id="view-input">
+            <div class="panel">
+                <div class="lock-banner" id="lockBanner">
+                    <span class="msg" id="lockMsg">🔒 Terkunci. Login untuk menambah / mengubah data.</span>
+                    <button class="btn btn-teal btn-sm" id="lockLoginBtn" onclick="showLoginModal()">Login</button>
+                </div>
+
+                <input type="hidden" id="fId">
+                <textarea class="input-kalimat" id="fKegiatan" rows="2"
+                    placeholder="Tulis kegiatan dalam kalimat, cth: Kajian kelayakan tahun 2026 di kebun Dusun Hulu"></textarea>
+                <div class="hint">Regional &amp; tahun terdeteksi otomatis dari kalimat.</div>
+
+                <div class="quick-row">
+                    <select id="fRegional"></select>
+                    <select id="fTahun">
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                    </select>
+                </div>
+                <div class="quick-row">
+                    <input type="text" id="fKebun" placeholder="Kebun / lokasi *">
+                    <select id="fStatus">
+                        <option value="PROSES">Status: Proses</option>
+                        <option value="SELESAI">Status: Selesai</option>
+                    </select>
+                </div>
+
+                <div class="accordion-head" id="detailToggle" onclick="toggleDetail()">
+                    <span>Detail (opsional)</span><span class="arrow">▾</span>
+                </div>
+                <div class="accordion-body" id="detailBody">
+                    <div class="form-grid">
+                        <div class="fg"><label>Perusahaan</label><input type="text" id="fPerusahaan"></div>
+                        <div class="fg"><label>Petugas</label><input type="text" id="fPetugas"></div>
+                        <div class="fg"><label>Tanggal Kunjungan</label><input type="text" id="fTglKunjungan" placeholder="cth: 22-24 Apr 2025"></div>
+                        <div class="fg"><label>Korektor (pisahkan ';')</label><input type="text" id="fKorektor"></div>
+                        <div class="fg"><label>Kode Laporan (otomatis)</label><input type="text" id="fKode"></div>
+                        <div class="fg"><label>Sudah Dikirim</label><input type="text" id="fSudahDikirim" placeholder="cth: 12 Mei 2025"></div>
+                        <div class="fg full"><label>Folder Laporan</label><input type="text" id="fFolder" placeholder="Path/URL folder laporan"></div>
+                        <div class="fg full"><label>Tahap Korektor (Masuk/Keluar)</label>
+                            <div id="assignmentBody"></div>
+                            <div style="display:flex;gap:6px;margin-top:6px">
+                                <input type="text" id="newAssignmentNama" placeholder="Nama korektor" style="flex:1;padding:7px 10px;border-radius:4px;border:1px solid #ced4da;background:#ffffff;color:#212529;font-size:0.76rem">
+                                <button class="btn btn-teal btn-sm" id="addAssignmentBtn" onclick="addAssignmentRow()">+ Tahap</button>
+                            </div>
+                        </div>
+                        <div class="fg full"><label>Catatan</label><textarea id="fCatatan" rows="2"></textarea></div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn btn-teal" id="saveBtn" onclick="saveForm()" style="flex:1">Simpan Data</button>
+                    <button class="btn btn-dark" onclick="resetForm()">Bersihkan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== VIEW : DAFTAR & LACAK LAPORAN ======== -->
+        <div class="view hidden" id="view-daftar">
+            <div class="panel">
+                <div class="toolbar">
+                    <select id="listRegional"><option value="">Semua Regional</option></select>
+                    <select id="listTahun"><option value="">Semua Tahun</option></select>
+                    <select id="listStatus"><option value="">Semua Status</option><option value="PROSES">Proses</option><option value="SELESAI">Selesai</option></select>
+                    <input type="text" id="listSearch" placeholder="Cari kode/kebun/regional...">
+                    <button class="btn btn-dark btn-sm" onclick="loadList(1)">Cari</button>
+                    <button class="btn btn-outline btn-sm" onclick="resetList()">Reset</button>
+                    <button class="btn btn-teal btn-sm" onclick="exportExcel()">Ekspor Excel</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Kode</th><th>Regional</th><th>Kebun</th><th>Tahun</th><th>Status</th><th style="text-align:center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listBody">
+                            <tr><td colspan="6" style="text-align:center;padding:22px;color:#6c757d">Memuat data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="listPagination"></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Indeks Folder Laporan</div>
+                <div class="toolbar">
+                    <select id="idxTahun"><option value="">Semua Tahun</option></select>
+                    <select id="idxKategori"><option value="">Semua Kategori</option><option value="PTPN">PTPN</option><option value="PT">PT</option><option value="Lainnya">Lainnya</option></select>
+                    <input type="text" id="idxSearch" placeholder="Cari folder...">
+                    <button class="btn btn-dark btn-sm" onclick="loadIndex(1)">Cari</button>
+                </div>
+                <div class="table-wrap" style="max-height:200px">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Folder</th><th>Tahun</th><th>Jml</th><th style="text-align:center">Link</th></tr>
+                        </thead>
+                        <tbody id="idxBody">
+                            <tr><td colspan="4" style="text-align:center;padding:18px;color:#6c757d">Memuat...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="idxPagination"></div>
+            </div>
+            <div class="panel">
+                <div class="accordion-head" id="settingsToggle" onclick="toggleSettings()" style="margin-top:0">
+                    <span>Kelola Korektor &amp; Password</span><span class="arrow">▾</span>
+                </div>
+                <div class="accordion-body" id="settingsBody">
+                    <div style="margin-bottom:12px">
+                        <div class="fg"><label>Nama korektor baru</label>
+                        <div style="display:flex;gap:6px">
+                            <input type="text" id="newKorektorName" placeholder="Nama korektor" style="flex:1;padding:8px 10px;border-radius:4px;border:1px solid #ced4da;background:#ffffff;color:#212529">
+                            <button class="btn btn-teal" id="addKorektorBtn" onclick="addKorektor()">Tambah</button>
+                        </div></div>
+                        <div id="korektorList"></div>
+                    </div>
+                    <div style="border-top:1px solid #dee2e6;padding-top:10px">
+                        <div class="fg"><label>Password Lama</label><input type="password" id="pOld"></div>
+                        <div class="fg"><label>Password Baru</label><input type="password" id="pNew"></div>
+                        <div class="fg"><label>Ulangi Password Baru</label><input type="password" id="pNew2"></div>
+                        <div style="margin-top:9px"><button class="btn btn-teal" id="changePwBtn" onclick="changePassword()">Ubah Password</button></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== VIEW : DASHBOARD ======== -->
+        <div class="view" id="view-dashboard">
+            <div class="panel">
+                <div class="panel-title">Ringkasan <button class="btn btn-teal btn-sm" onclick="refreshData()">⟳ Refresh</button></div>
+                <div class="summary-cards">
+                    <div class="stat-card stat-total"><div class="lab">Total</div><div class="val" id="totalValue">-</div><div class="sub">laporan</div></div>
+                    <div class="stat-card stat-selesai"><div class="lab">Selesai</div><div class="val" id="selesaiValue">-</div><div class="sub" id="selesaiSub">-</div></div>
+                    <div class="stat-card stat-proses"><div class="lab">Proses</div><div class="val" id="prosesValue">-</div><div class="sub" id="prosesSub">-</div></div>
+                    <div class="stat-card stat-persen"><div class="lab">% Selesai</div><div class="val" id="persenValue">-</div><div class="sub">penyelesaian</div></div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="chart-card wide"><h4>Jumlah per Regional</h4><div class="box"><canvas id="chartRegional"></canvas></div></div>
+                <div class="chart-card"><h4>Status</h4><div class="box"><canvas id="chartStatus"></canvas></div></div>
+                <div class="chart-card"><h4>Tren per Tahun</h4><div class="box"><canvas id="chartTahun"></canvas></div></div>
+                <div class="chart-card wide"><h4>Selesai per Tahun per Regional</h4><div class="box"><canvas id="chartSelesaiTahunRegional"></canvas></div></div>
+                <div class="chart-card"><h4>Kategori Kegiatan</h4><div class="box"><canvas id="chartKegiatan"></canvas></div></div>
+                <div class="chart-card"><h4>Kinerja Korektor</h4><div class="box"><canvas id="chartKorektor"></canvas></div></div>
+                <div class="chart-card wide"><h4>Sebaran Korektor per Regional</h4><div class="box"><canvas id="chartKorektorRegional"></canvas></div></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">% Selesai per Regional</div>
+                <div id="progressBars"></div>
+            </div>
+        </div>
+</div>
+
+    <!-- LOGIN MODAL -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <h3>Login Admin</h3>
+            <p>Masukkan password untuk mengaktifkan input / edit data.</p>
+            <div class="err-msg" id="loginError">Password salah.</div>
+            <input type="password" id="loginPassword" placeholder="Password admin">
+            <button class="btn btn-teal" style="width:100%" onclick="submitLogin()">Masuk</button>
+            <button class="btn btn-dark" style="width:100%;margin-top:8px" onclick="closeLoginModal()">Batal</button>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal">
+            <h3 id="confirmTitle">Konfirmasi</h3>
+            <p id="confirmMessage">Yakin lanjut?</p>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn btn-dark" onclick="closeConfirm()">Batal</button>
+                <button class="btn btn-red" id="confirmOkBtn">Ya</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="/static/dashboard.js"></script>
+    <script src="/static/data.js"></script>
+</body>
+</html>
