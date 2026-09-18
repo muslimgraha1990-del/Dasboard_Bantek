@@ -2,5 +2,6 @@ __pycache__/
 *.pyc
 bantek.db*
 ~$*
+credentials.json
 *.xlsx
 !Monitoring Bantuan Teknis - Ringkasan_KOREKTOR_3.xlsx

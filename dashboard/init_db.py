@@ -1,5 +1,6 @@
 import getpass
 import os
+import sys
 
 from werkzeug.security import generate_password_hash
 
@@ -7,10 +8,10 @@ from database import init_db, get_connection, db_exists
 from import_excel import load_from_excel, rebuild_db, EXCEL_PATH
 
 
-def set_password():
+def set_password(force=False):
     conn = get_connection()
     row = conn.execute("SELECT value FROM settings WHERE key='admin_password_hash'").fetchone()
-    if row and row['value']:
+    if row and row['value'] and not force:
         print("Password admin sudah ter-set sebelumnya. Lewati.")
         conn.close()
         return False
@@ -38,6 +39,18 @@ def set_password():
 
 
 def main():
+    force = '--reset-password' in sys.argv
+
+    if force:
+        print("=" * 60)
+        print("RESET PASSWORD ADMIN")
+        print("=" * 60)
+        init_db()
+        set_password(force=True)
+        print("\nPassword admin berhasil di-reset.")
+        print("Jalankan: python app.py")
+        return
+
     print("=" * 60)
     print("Membangun database monitoring bantuan teknis...")
     print("=" * 60)

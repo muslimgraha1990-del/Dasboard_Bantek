@@ -1,0 +1,180 @@
+# PROMPT - MONITORING LAPORAN BANTUAN TEKNIS
+# File: Monitoring Bantuan Teknis - Ringkasan_PRE-KOREKTOR-BACKUP.xlsx
+# Deskripsi: Sistem monitoring laporan bantuan teknis PTPN IV (Urusan Pelayanan Jasa Konsultansi dan Pelatihan)
+
+================================================================================
+## STRUKTUR FILE EXCEL
+================================================================================
+
+### Sheet 1: RINGKASAN (Dashboard Utama)
+- **A1**: Judul "MONITORING LAPORAN BANTUAN TEKNIS"
+- **A2**: Subjudul "Urusan Pelayanan Jasa Konsultansi dan Pelatihan (otomatis ter-update s.d 1000 baris/sheet)"
+
+#### Bagian A: STATISTIK KESELURUHAN (Baris 4-8)
+| Cell | Label | Rumus |
+|------|-------|-------|
+| A5 | Total Data: | =COUNTA dari semua sheet (kolom C, baris 4-1001) |
+| B5 | Sudah Dikirim: | =COUNTIF status "SELESAI" dari semua sheet |
+| C5 | Masih Proses: | =COUNTIF status "PROSES" dari semua sheet |
+| A8 | % Selesai: | =(Sudah Dikirim/Total)*100 |
+
+#### Bagian B: RINGKASAN PER REGIONAL (Baris 10-21)
+Kolom: Regional | Total | Draft Masuk | Dikoreksi | Direvisi | Dicetak | Sudah Dikirim | % Selesai | Sheet
+
+Regional yang dipantau:
+1. Regional 1 (Data R1)
+2. Regional 2 (Data R2)
+3. Regional 3 (Data R3)
+4. Regional 4 (Data R4)
+5. Regional 5 (Data R5)
+6. Regional 6 (Data R6)
+7. Regional 7 (Data R7)
+8. Regional 4 Palmco (Data R4P)
+9. Swasta/PPKS (Data SW)
+
+#### Bagian C: RINGKASAN PER TAHUN (Baris 23-28)
+Tahun: 2024, 2025, 2026
+Rumus COUNTIFS dengan filter tahun per semua sheet
+
+#### Bagian D: RINGKASAN PER TAHUN PER REGIONAL (Baris 30-42)
+Matriks: Tahun x Regional (sudah ada data aktual):
+| Tahun | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R4P | SW | TOTAL |
+|-------|----|----|----|----|----|----|----|-----|-----|-------|
+| 2024  | 17 | 43 | 2  | 7  | 7  | 0  | 1  | 0   | 50  | 127   |
+| 2025  | 16 | 17 | 1  | 6  | 10 | 3  | 5  | 24  | 24  | 106   |
+| 2026  | 0  | 30 | 11 | 1  | 11 | 1  | 9  | 4   | 20  | 87    |
+| TOTAL | 33 | 90 | 14 | 14 | 28 | 4  | 15 | 28  | 94  | 320   |
+
+% Selesai per Tahun per Regional:
+| Tahun | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R4P | SW | TOTAL |
+|-------|----|----|----|----|----|----|----|-----|-----|-------|
+| 2024  | 0% | 0% | 0% | 29%| 0% | 0% | 0% | 0%  | 22% | 6%    |
+| 2025  | 0% | 6% | 0% | 0% | 0% | 0% | 0% | 0%  | 25% | 3%    |
+| 2026  | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0%  | 0%  | 0%    |
+| TOTAL | 0% | 1% | 0% | 14%| 0% | 0% | 0% | 0%  | 18% | 6%    |
+
+---
+
+### Sheet 2-10: DATA REGIONAL (Data R1, Data R2, ..., Data R7, Data R4P, Data SW)
+
+#### Struktur Kolom (A-AF, 32 kolom):
+| Kolom | Field | Keterangan |
+|-------|-------|------------|
+| A | No | Nomor urut |
+| B | Perusahaan | Nama perusahaan (PTPN IV Regional I-VII, dll) |
+| C | Kebun/Lokasi | Nama kebun atau lokasi kunjungan |
+| D | Petugas | Nama-nama petugas yang melakukan kunjungan |
+| E | Tanggal Kunjungan | Periode kunjungan lapangan |
+| F | Kegiatan | Jenis kegiatan bantuan teknis |
+| G | Draft Masuk | Tanggal draft masuk ke korektor |
+| H | Draft Korektor | Tanggal draft dikoreksi |
+| I | Korektor | Nama korektor |
+| J | Korektor 1 Masuk | Tanggal masuk korektor 1 |
+| K | Korektor 1 Keluar | Tanggal keluar korektor 1 |
+| L-N | Korektor 2 Masuk/Keluar | Tahap koreksi 2 |
+| O-Q | Korektor 3 Masuk/Keluar | Tahap koreksi 3 |
+| R-T | Korektor 4 Masuk/Keluar | Tahap koreksi 4 |
+| U-W | Korektor 5 Masuk/Keluar | Tahap koreksi 5 |
+| X-Y | Korektor 6-7 | Tahap koreksi lanjutan |
+| Z | Revisi | Tanggal revisi |
+| AA | Cetak | Tanggal cetak laporan |
+| AB | Sudah Dikirim | Tanggal laporan dikirim |
+| AC | STATUS | Otomatis: IF(C="","",IF(AB="","PROSES","SELESAI")) |
+| AD | Tahun | Tahun kegiatan (2024/2025/2026) |
+| AE | Folder Laporan | Hyperlink ke folder file laporan |
+| AF | Catatan | Catatan tambahan |
+
+#### Status Otomatis (Kolom AC):
+- Jika Kebun/Lokasi kosong => Kosong
+- Jika Sudah Dikirim kosong => "PROSES"
+- Jika Sudah Dikirim terisi => "SELESAI"
+
+#### Data per Sheet:
+| Sheet | Jumlah Data | Keterangan |
+|-------|-------------|------------|
+| Data R1 | 33 baris | Regional 1 |
+| Data R2 | 90 baris | Regional 2 |
+| Data R3 | 14 baris | Regional 3 |
+| Data R4 | 14 baris | Regional 4 |
+| Data R5 | 28 baris | Regional 5 |
+| Data R6 | 4 baris  | Regional 6 |
+| Data R7 | 15 baris | Regional 7 |
+| Data R4P | 28 baris | Regional 4 Palmco |
+| Data SW | 94 baris | Swasta/PPKS |
+| **TOTAL** | **320** | |
+
+---
+
+### Sheet 11: INDEX LAPORAN
+Daftar indeks/folder laporan yang tersimpan:
+- Kolom A: Path folder
+- Kolom B: Tahun
+- Kolom C: Kategori (PTPN/PT/Lainnya)
+- Kolom D: Jenis (Bantek/Rekom/Pelatihan)
+- Kolom E: Jumlah file
+- Kolom F: Aksi (Buka)
+
+---
+
+## CONTOH DATA (Regional 1 - Data R1)
+
+### Kegiatan Bantuan Teknis yang Termonitor:
+1. Pengawalan pengendalian hama UPDKS
+2. Kajian kelayakan rencana tanaman ulang tahun 2025
+3. Kriteria matang panen tahun 2025
+4. Kajian kelayakan rencana tanaman ulang tahun 2026
+5. Evaluasi areal TBM I kelapa sawit
+6. Evaluasi buah Partenokarpi
+7. Kajian Teknis Areal Non Produktif (Puso)
+8. Evaluasi Rencana Tanam Ulang Tahun 2025
+9. Kajian pembumbunan tanaman kelapa sawit pasca 16 bulan
+10. Kajian rencana TU/TK tahun 2026
+11. Evaluasi TBM
+12. Pemeriksaan lapangan dan rekomendasi bibit kelapa sawit siap salur
+
+### Korektor yang Terlibat:
+- Pak Edi Sigit Sutarta
+- Pak Josep
+- Pak Desra
+- Pak Iput Pradiko
+- Pak Prast
+- Pak Madiyuanto
+- Pak Agung Rahmat
+- Pak Zulfi
+
+---
+
+## RUMUS EXCEL PENTING
+
+### STATUS Otomatis (Kolom AC):
+```
+=IF($C4="","",IF($AB4="","PROSES","SELESAI"))
+```
+
+### Folder Laporan Hyperlink (Kolom AE):
+```
+=HYPERLINK("file:///path/to/folder","[Buka X file]")
+```
+
+### COUNTIFS untuk Ringkasan Per Tahun:
+```
+=COUNTIFS('Data R1'!$C$4:$C$1001,"<>",'Data R1'!$AD$4:$AD$1001,$A25)
++COUNTIFS('Data R2'!$C$4:$C$1001,"<>",'Data R2'!$AD$4:$AD$1001,$A25)
++... (untuk semua sheet)
+```
+
+### % Selesai per Regional:
+```
+=IF(COUNTA('Data R1'!$C$4:$C$1001)=0,0,
+  ROUND(COUNTIF('Data R1'!$AB$4:$AB$1001,"<>")/COUNTA('Data R1'!$C$4:$C$1001)*100,0))
+```
+
+---
+
+## CATATAN PENTING
+1. File ini adalah BACKUP sebelum proses koreksi (PRE-KOREKTOR)
+2. Setiap sheet data memiliki kapasitas maksimum 1000 baris data (baris 4-1001)
+3. Status PROSES/SELESAI dihitung otomatis berdasarkan kolom "Sudah Dikirim"
+4. Folder Laporan menggunakan hyperlink ke file lokal di drive E:
+5. Data mencakup tahun 2024-2026
+6. Total keseluruhan: 320 laporan bantuan teknis

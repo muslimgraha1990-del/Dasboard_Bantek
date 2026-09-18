@@ -1,9 +1,12 @@
+import datetime
 import os
 from functools import wraps
 from flask import Flask, render_template, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from database import get_connection, init_db, db_exists, migrate_db, REGIONAL_ORDER
+from database import get_connection, init_db, db_exists, migrate_db, REGIONAL_ORDER, DB_PATH
+from import_excel import EXCEL_PATH, compare_report, import_from_excel
+from sync_gsheets import try_sync_gsheets
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'bantek-dashboard-secret-key-change-me')
@@ -55,10 +58,31 @@ def fetch_laporan(conn, id):
     return dict(row) if row else None
 
 
+def _parse_date(v):
+    if not v:
+        return None
+    s = str(v).strip()
+    for fmt in ('%d-%m-%Y', '%Y-%m-%d', '%d/%m/%Y', '%d-%m-%y'):
+        try:
+            return datetime.datetime.strptime(s, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
+def _days_between(a, b):
+    da = _parse_date(a)
+    db = _parse_date(b)
+    if not da or not db:
+        return None
+    return (db - da).days
+
+
 def laporan_public(rec):
     rec = dict(rec)
     rec['status'] = status_of(rec.get('sudah_dikirim'))
     rec['kegiatan_kategori'] = classify_kegiatan(rec.get('kegiatan'))
+    rec['durasi_hari'] = _days_between(rec.get('draft_masuk'), rec.get('draft_korektor'))
     return rec
 
 
@@ -69,6 +93,14 @@ def query_all_laporan():
         return [laporan_public(r) for r in rows]
     finally:
         conn.close()
+
+
+def qdata():
+    data = query_all_laporan()
+    tahun = request.args.get('tahun', '')
+    if tahun and tahun != 'Semua':
+        data = [d for d in data if d['tahun'] == tahun]
+    return data
 
 
 def _regional_no(regional):
@@ -93,12 +125,14 @@ def _backfill_single(id):
         if not rec or rec.get('kode_laporan'):
             return
         no_reg = _regional_no(rec.get('regional'))
-        tahun = str(rec.get('tahun') or '') or '0000'
+        tahun_db = str(rec.get('tahun') or '')
+        tahun_kode = tahun_db or '0000'
         row = conn.execute(
-            "SELECT COUNT(*) AS c FROM laporan WHERE regional=? AND kode_laporan IS NOT NULL AND kode_laporan != ''",
-            (rec.get('regional'),)).fetchone()
+            "SELECT COUNT(*) AS c FROM laporan WHERE regional=? AND tahun=? "
+            "AND kode_laporan IS NOT NULL AND kode_laporan != ''",
+            (rec.get('regional'), tahun_db)).fetchone()
         seq = row['c'] + 1
-        kode = 'R%s-%s-%03d' % (no_reg, tahun, seq)
+        kode = 'R%s-%s-%03d' % (no_reg, tahun_kode, seq)
         conn.execute("UPDATE laporan SET kode_laporan=? WHERE id=?", (kode, id))
         conn.commit()
         return kode
@@ -191,7 +225,7 @@ def api_status():
 
 @app.route('/api/summary')
 def api_summary():
-    data = query_all_laporan()
+    data = qdata()
     total = len(data)
     selesai = sum(1 for d in data if d['status'] == 'SELESAI')
     proses = sum(1 for d in data if d['status'] == 'PROSES')
@@ -199,9 +233,35 @@ def api_summary():
     return jsonify({'total': total, 'selesai': selesai, 'proses': proses, 'persen_selesai': persen})
 
 
+@app.route('/api/korektor_names')
+def api_korektor_names():
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT nama FROM korektor_master ORDER BY nama").fetchall()
+        return jsonify([r['nama'] for r in rows])
+    finally:
+        conn.close()
+
+
+@app.route('/api/tahap')
+def api_tahap():
+    data = qdata()
+    stages = ['draft_masuk', 'draft_korektor', 'revisi', 'cetak', 'sudah_dikirim']
+    labels = {'draft_masuk': 'Draft Masuk', 'draft_korektor': 'Dikoreksi',
+              'revisi': 'Direvisi', 'cetak': 'Dicetak', 'sudah_dikirim': 'Dikirim'}
+    result = []
+    for r in REGIONAL_ORDER:
+        subset = [d for d in data if d['regional'] == r]
+        row = {'regional': r, 'total': len(subset)}
+        for s in stages:
+            row[labels[s]] = sum(1 for d in subset if d.get(s))
+        result.append(row)
+    return jsonify(result)
+
+
 @app.route('/api/regional')
 def api_regional():
-    data = query_all_laporan()
+    data = qdata()
     regional_stats = {}
     for d in data:
         r = d['regional']
@@ -252,12 +312,16 @@ def api_tahun():
 
 @app.route('/api/matriks_status')
 def api_matriks_status():
-    data = query_all_laporan()
-    selesai_matrix = {r: {'2024': 0, '2025': 0, '2026': 0, 'total': 0} for r in REGIONAL_ORDER}
-    proses_matrix = {r: {'2024': 0, '2025': 0, '2026': 0, 'total': 0} for r in REGIONAL_ORDER}
+    data = qdata()
+    years = sorted({d['tahun'] for d in data if d.get('tahun')})
+    if not years:
+        years = [str(datetime.date.today().year)]
+    year_keys = years + ['total']
+    selesai_matrix = {r: {y: 0 for y in year_keys} for r in REGIONAL_ORDER}
+    proses_matrix = {r: {y: 0 for y in year_keys} for r in REGIONAL_ORDER}
     for d in data:
         r, t = d['regional'], d['tahun']
-        if r not in selesai_matrix or t not in ('2024', '2025', '2026'):
+        if r not in selesai_matrix or t not in years:
             continue
         if d['status'] == 'SELESAI':
             selesai_matrix[r][t] += 1
@@ -268,7 +332,7 @@ def api_matriks_status():
     result = []
     for r in REGIONAL_ORDER:
         row = {'regional': r}
-        for yr in ('2024', '2025', '2026', 'total'):
+        for yr in year_keys:
             t = selesai_matrix[r][yr] + proses_matrix[r][yr]
             s = selesai_matrix[r][yr]
             row[yr] = s
@@ -278,9 +342,20 @@ def api_matriks_status():
     return jsonify(result)
 
 
+@app.route('/api/tahun_list')
+def api_tahun_list():
+    data = query_all_laporan()
+    years = sorted({d['tahun'] for d in data if d.get('tahun')})
+    ty = str(datetime.date.today().year)
+    if ty not in years:
+        years.append(ty)
+        years.sort()
+    return jsonify(years)
+
+
 @app.route('/api/kegiatan')
 def api_kegiatan():
-    data = query_all_laporan()
+    data = qdata()
     kegiatan_count = {}
     for d in data:
         k = d['kegiatan_kategori']
@@ -292,7 +367,7 @@ def api_kegiatan():
 
 @app.route('/api/korektor')
 def api_korektor():
-    data = query_all_laporan()
+    data = qdata()
     korektor_stats = {}
     for d in data:
         korektor = d['korektor']
@@ -460,6 +535,8 @@ def api_laporan_create():
     for name in [n.strip() for n in data['korektor'].split(';') if n.strip()]:
         insert_korektor_master(name)
 
+    try_sync_gsheets(data)
+
     return jsonify({'status': 'ok', 'id': new_id}), 201
 
 
@@ -557,8 +634,11 @@ def api_korektor_assignment_put(id):
                 "INSERT INTO korektor_assignment (laporan_id, urutan, nama, masuk, keluar) VALUES (?,?,?,?,?)",
                 (id, urutan, nama, clean_str(it.get('masuk')), clean_str(it.get('keluar')))
             )
-            insert_korektor_master(nama)
         conn.commit()
+        for it in items:
+            nama = clean_str(it.get('nama'))
+            if nama:
+                insert_korektor_master(nama)
     finally:
         conn.close()
     return jsonify({'status': 'ok'})
@@ -589,6 +669,35 @@ def api_index_laporan():
         return jsonify([dict(r) for r in rows])
     finally:
         conn.close()
+
+
+# ---------------- SYNC EXCEL ----------------
+
+@app.route('/api/sync_status')
+def api_sync_status():
+    if not os.path.exists(EXCEL_PATH):
+        return jsonify({'exists': False, 'file': os.path.basename(EXCEL_PATH)})
+    rep = compare_report(EXCEL_PATH)
+    db_mtime = os.path.getmtime(DB_PATH) if db_exists() else 0
+    ex_mtime = os.path.getmtime(EXCEL_PATH)
+    rep['exists'] = True
+    rep['db_mtime'] = datetime.datetime.fromtimestamp(db_mtime).strftime('%Y-%m-%d %H:%M:%S') if db_mtime else ''
+    rep['excel_mtime'] = datetime.datetime.fromtimestamp(ex_mtime).strftime('%Y-%m-%d %H:%M:%S')
+    rep['excel_newer'] = ex_mtime > db_mtime
+    return jsonify(rep)
+
+
+@app.route('/api/sync_excel', methods=['POST'])
+@login_required
+def api_sync_excel():
+    try:
+        if not os.path.exists(EXCEL_PATH):
+            return jsonify({'error': 'File Excel tidak ditemukan: %s' % EXCEL_PATH}), 400
+        result = import_from_excel(EXCEL_PATH)
+        result['report'] = compare_report(EXCEL_PATH)
+        return jsonify({'status': 'ok', 'result': result})
+    except Exception as e:
+        return jsonify({'error': 'Sync gagal: %s' % str(e)}), 500
 
 
 # ---------------- EXPORT XLSX ----------------
@@ -629,7 +738,8 @@ def api_export():
         ('Perusahaan', 'perusahaan'), ('Kebun/Lokasi', 'kebun'),
         ('Petugas', 'petugas'), ('Tanggal Kunjungan', 'tanggal_kunjungan'),
         ('Kegiatan', 'kegiatan'), ('Draft Masuk', 'draft_masuk'),
-        ('Draft Korektor', 'draft_korektor'), ('Korektor', 'korektor'),
+        ('Draft Korektor', 'draft_korektor'), ('Durasi ke Korektor (hari)', 'durasi_hari'),
+        ('Korektor', 'korektor'),
         ('Revisi', 'revisi'), ('Cetak', 'cetak'), ('Sudah Dikirim', 'sudah_dikirim'),
         ('Status', 'status'), ('Kategori Kegiatan', 'kegiatan_kategori'),
         ('Tahun', 'tahun'), ('Folder Laporan', 'folder_laporan'), ('Catatan', 'catatan'),
@@ -662,7 +772,37 @@ def api_export():
     for i, (k, v) in enumerate(ringkas, start=1):
         ws2.cell(row=i, column=1, value=k)
         ws2.cell(row=i, column=2, value=v)
-    ws2.column_dimensions['A'].width = 16
+    ws2.column_dimensions['A'].width = 22
+
+    reg_totals = {}
+    tahun_totals = {}
+    for d in filtered:
+        reg_totals.setdefault(d['regional'], [0, 0])
+        tahun_totals.setdefault(d['tahun'] or '-', [0, 0])
+        reg_totals[d['regional']][0] += 1
+        tahun_totals[d['tahun'] or '-'][0] += 1
+        if d['status'] == 'SELESAI':
+            reg_totals[d['regional']][1] += 1
+            tahun_totals[d['tahun'] or '-'][1] += 1
+
+    def write_block(title, data, start_row):
+        ws2.cell(row=start_row, column=1, value=title).font = Font(bold=True)
+        ws2.cell(row=start_row + 1, column=1, value='Item').font = Font(bold=True)
+        ws2.cell(row=start_row + 1, column=2, value='Total').font = Font(bold=True)
+        ws2.cell(row=start_row + 1, column=3, value='Selesai').font = Font(bold=True)
+        ws2.cell(row=start_row + 1, column=4, value='%').font = Font(bold=True)
+        r = start_row + 2
+        for key in data:
+            t, s = data[key]
+            p = round(s / t * 100, 1) if t else 0
+            ws2.cell(row=r, column=1, value=key)
+            ws2.cell(row=r, column=2, value=t)
+            ws2.cell(row=r, column=3, value=s)
+            ws2.cell(row=r, column=4, value=p)
+            r += 1
+
+    write_block('PER REGIONAL', reg_totals, 6)
+    write_block('PER TAHUN', tahun_totals, 6 + len(reg_totals) + 2)
 
     buf = BytesIO()
     wb.save(buf)

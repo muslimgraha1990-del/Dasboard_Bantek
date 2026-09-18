@@ -108,11 +108,23 @@ function initSidebar() {
             document.body.classList.toggle('sidebar-collapsed');
         });
     }
+    const runSideSearch = function() {
+        const input = document.getElementById('sideSearch');
+        const q = input ? input.value.trim() : '';
+        showView('daftar');
+        if (q) document.getElementById('listSearch').value = q;
+        loadList(1);
+    };
+    const sideInput = document.getElementById('sideSearch');
+    const sideBtn = document.getElementById('sideSearchBtn');
+    if (sideBtn) sideBtn.addEventListener('click', runSideSearch);
+    if (sideInput) sideInput.addEventListener('keydown', e => { if (e.key === 'Enter') runSideSearch(); });
 }
 
 function enableForm(enabled) {
     const ids = ['fKebun', 'fKode', 'fPerusahaan', 'fPetugas', 'fTglKunjungan', 'fKegiatan',
-                 'fKorektor', 'fSudahDikirim', 'fFolder', 'fCatatan'];
+                 'fKorektor', 'fSudahDikirim', 'fFolder', 'fCatatan',
+                 'fDraftMasuk', 'fDraftKorektor', 'fRevisi', 'fCetak'];
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !enabled; });
     document.getElementById('fRegional').disabled = !enabled;
     document.getElementById('fTahun').disabled = !enabled;
@@ -163,7 +175,7 @@ async function logout() {
 document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') submitLogin(); });
 
 // ---------------- AUTO DETECT from sentence ----------------
-const YEAR_MAP = { '2024': '2024', '2025': '2025', '2026': '2026' };
+const YEAR_RE = /\b(19|20)\d{2}\b/;
 const REGIONAL_PATTERNS = [
     { re: /regional\s*4\s*(palmco|p\b)/i, val: 'Regional 4 Palmco' },
     { re: /regional\s*4\b/i, val: 'Regional 4' },
@@ -180,9 +192,8 @@ const REGIONAL_PATTERNS = [
 function detectFromSentence() {
     const text = document.getElementById('fKegiatan').value || '';
     // Tahun
-    for (const yr of ['2024', '2025', '2026']) {
-        if (text.includes(yr)) { document.getElementById('fTahun').value = yr; break; }
-    }
+    const m = text.match(YEAR_RE);
+    if (m) { document.getElementById('fTahun').value = m[0]; }
     // Regional
     for (const p of REGIONAL_PATTERNS) {
         if (p.re.test(text)) { document.getElementById('fRegional').value = p.val; break; }
@@ -190,19 +201,31 @@ function detectFromSentence() {
 }
 
 // ---------------- LIST ----------------
-function populateFilters() {
+async function populateFilters() {
     const regSelect = document.getElementById('listRegional');
     REGIONALS.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; regSelect.appendChild(o); });
+    let years = [];
+    try { years = await fetchJSON('/api/tahun_list'); } catch (e) {}
     const tSelect = document.getElementById('listTahun');
-    ['2024', '2025', '2026'].forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; tSelect.appendChild(o); });
     const idxSelect = document.getElementById('idxTahun');
-    ['2021', '2022', '2023', '2024', '2025', '2026'].forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; idxSelect.appendChild(o); });
+    const dashSelect = document.getElementById('dashYear');
+    const tahunDl = document.getElementById('tahunOptions');
+    const yearOptions = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    if (tSelect) tSelect.insertAdjacentHTML('beforeend', yearOptions);
+    if (idxSelect) idxSelect.insertAdjacentHTML('beforeend', yearOptions);
+    if (dashSelect) dashSelect.innerHTML = '<option value="">Semua Tahun</option>' + yearOptions;
+    if (tahunDl) tahunDl.innerHTML = years.map(y => `<option value="${y}">`).join('');
     const fReg = document.getElementById('fRegional');
     REGIONALS.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; fReg.appendChild(o); });
 }
 
 function badge(s) {
-    return `<span class="badge ${s === 'SELESAI' ? 'badge-selesai' : 'badge-proses'}">${s}</span>`;
+    return `<span class="badge ${s === 'SELESAI' ? 'badge-selesai' : 'badge-proses'}">${esc(s)}</span>`;
+}
+
+function truncate(s, n) {
+    s = String(s == null ? '' : s);
+    return esc(s.length > n ? s.slice(0, n - 1) + '…' : s);
 }
 
 function getFilterParams() {
@@ -227,18 +250,22 @@ async function loadList(page = 1) {
         params.set('page', page);
         const data = await fetchJSON('/api/detail?' + params.toString());
         if (data.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#6c757d">Tidak ada data</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:#6c757d">Tidak ada data</td></tr>';
             document.getElementById('listPagination').innerHTML = '';
             return;
         }
         let html = '';
         for (const d of data.data) {
+            const detailBtn = `<button class="btn btn-outline btn-sm" onclick="showDetail(${d.id})" title="Lihat detail">Detail</button>`;
             const editBtn = isLoggedIn ? `<button class="btn btn-warn btn-sm" onclick="editRecord(${d.id})">Edit</button>` : '';
-            const delBtn = isLoggedIn ? `<button class="btn btn-red btn-sm" onclick="confirmDelete(${d.id}, '${d.kebun.replace(/'/g, "\\'")}')">Hapus</button>` : '';
+            const delBtn = isLoggedIn ? `<button class="btn btn-red btn-sm" onclick="confirmDelete(${d.id}, '${esc(d.kebun || '').replace(/'/g, "\\'")}')">Hapus</button>` : '';
+            const dur = (d.durasi_hari != null && d.durasi_hari !== '') ? d.durasi_hari : '-';
             html += `<tr>
-                <td class="kode-cell">${d.kode_laporan || '&nbsp;'}</td><td>${d.regional}</td><td>${d.kebun}</td>
-                <td>${d.tahun || ''}</td><td>${badge(d.status)}</td>
-                <td>${editBtn}${delBtn}</td>
+                <td class="kode-cell">${esc(d.kode_laporan) || '&nbsp;'}</td><td>${esc(d.regional)}</td><td>${esc(d.kebun)}</td>
+                <td title="${esc(d.kegiatan || '')}">${truncate(d.kegiatan, 28)}</td><td>${d.tahun || ''}</td>
+                <td title="${esc(d.tanggal_kunjungan || '')}">${truncate(d.tanggal_kunjungan, 18) || '&nbsp;'}</td><td>${dur}</td>
+                <td>${badge(d.status)}</td><td title="${esc(d.korektor || '')}">${truncate(d.korektor, 16)}</td>
+                <td style="white-space:nowrap">${detailBtn}${editBtn}${delBtn}</td>
             </tr>`;
         }
         tbody.innerHTML = html;
@@ -251,7 +278,7 @@ async function loadList(page = 1) {
         pag += `<span class="page-info">${page}/${data.total_pages} (${data.total})</span>`;
         document.getElementById('listPagination').innerHTML = pag;
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#f87171">${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:#f87171">${esc(e.message)}</td></tr>`;
     }
 }
 function resetList() {
@@ -279,9 +306,10 @@ function toggleSettings() {
 function resetForm() {
     editingId = null;
     const ids = ['fKebun', 'fKode', 'fPerusahaan', 'fPetugas', 'fTglKunjungan', 'fKegiatan',
-                 'fKorektor', 'fSudahDikirim', 'fFolder', 'fCatatan'];
+                 'fKorektor', 'fSudahDikirim', 'fFolder', 'fCatatan',
+                 'fDraftMasuk', 'fDraftKorektor', 'fRevisi', 'fCetak'];
     ids.forEach(id => document.getElementById(id).value = '');
-    document.getElementById('fTahun').value = '2026';
+    document.getElementById('fTahun').value = String(new Date().getFullYear());
     document.getElementById('fRegional').value = 'Regional 1';
     document.getElementById('fStatus').value = 'PROSES';
     document.getElementById('assignmentBody').innerHTML = '';
@@ -294,7 +322,7 @@ async function editRecord(id) {
         editingId = id;
         document.getElementById('fKegiatan').value = d.kegiatan || '';
         document.getElementById('fRegional').value = d.regional;
-        document.getElementById('fTahun').value = d.tahun || '2026';
+        document.getElementById('fTahun').value = d.tahun || String(new Date().getFullYear());
         document.getElementById('fKebun').value = d.kebun;
         document.getElementById('fKode').value = d.kode_laporan || '';
         document.getElementById('fStatus').value = d.status;
@@ -302,6 +330,10 @@ async function editRecord(id) {
         document.getElementById('fKorektor').value = d.korektor || '';
         document.getElementById('fPetugas').value = d.petugas || '';
         document.getElementById('fTglKunjungan').value = d.tanggal_kunjungan || '';
+        document.getElementById('fDraftMasuk').value = d.draft_masuk || '';
+        document.getElementById('fDraftKorektor').value = d.draft_korektor || '';
+        document.getElementById('fRevisi').value = d.revisi || '';
+        document.getElementById('fCetak').value = d.cetak || '';
         document.getElementById('fSudahDikirim').value = d.sudah_dikirim || '';
         document.getElementById('fFolder').value = d.folder_laporan || '';
         document.getElementById('fCatatan').value = d.catatan || '';
@@ -329,6 +361,10 @@ function collectForm() {
         perusahaan: document.getElementById('fPerusahaan').value,
         petugas: document.getElementById('fPetugas').value,
         tanggal_kunjungan: document.getElementById('fTglKunjungan').value,
+        draft_masuk: document.getElementById('fDraftMasuk').value,
+        draft_korektor: document.getElementById('fDraftKorektor').value,
+        revisi: document.getElementById('fRevisi').value,
+        cetak: document.getElementById('fCetak').value,
         kegiatan: document.getElementById('fKegiatan').value,
         tahun: document.getElementById('fTahun').value,
         korektor: document.getElementById('fKorektor').value,
@@ -561,5 +597,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     populateFilters();
     document.getElementById('fKegiatan').addEventListener('input', detectFromSentence);
     document.getElementById('idxSearch').addEventListener('keydown', e => { if (e.key === 'Enter') loadIndex(1); });
+    loadKorektorOptions();
     await Promise.all([loadAllDashboard(), loadList(1), loadKorektorList(), loadIndex(1)]);
+    setInterval(() => { if (typeof loadSyncStatus === 'function') loadSyncStatus(); }, 60000);
 });

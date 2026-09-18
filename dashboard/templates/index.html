@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Laporan Bantuan Teknis UPJKP</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <link rel="icon" type="image/jpeg" href="/static/vendor/img/avatar-user.jpeg">
+    <link rel="stylesheet" href="/static/vendor/font-awesome/css/font-awesome.min.css">
+    <script src="/static/vendor/chart.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -25,12 +26,13 @@
             box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.075);
         }
         .logo {
-            width: 58px; height: 58px; border-radius: 14px;
+            width: 106px; height: 58px; border-radius: 14px;
             background: linear-gradient(135deg, #17a2b8, #0d9488);
-            border: none;
+            border: none; overflow: hidden;
             display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,.15);
         }
-        .logo svg { width: 34px; height: 34px; }
+        .logo img { width: 100%; height: 100%; object-fit: cover; }
         .header-text { flex: 1; }
         .header-text h1 { font-size: 1.45rem; font-weight: 800; letter-spacing: 0.5px; color: #212529; }
         .header-text .subtitle { font-size: 0.8rem; color: #6c757d; margin-top: 2px; }
@@ -123,6 +125,11 @@
         .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; }
         .badge-proses { background: #fff3cd; color: #856404; }
         .badge-selesai { background: #d4edda; color: #155724; }
+        .mat-pct { font-size: 0.6rem; font-weight: 800; padding: 0 4px; }
+        .text-ok { color: #155724; }
+        .text-warn { color: #856404; }
+        .text-bad { color: #721c24; }
+        .mat-total td { background: #f8f9fa !important; font-weight: 700; border-top: 2px solid #dee2e6; }
 
         .pagination { display: flex; align-items: center; gap: 4px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
         .pagination button { padding: 5px 8px; border-radius: 4px; border: 1px solid #ced4da; background: #ffffff; color: #495057; cursor: pointer; font-size: 0.72rem; }
@@ -191,8 +198,9 @@
         .sidebar-brand .brand-logo {
             width: 44px; height: 44px; border-radius: 8px; background: #17a2b8;
             display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            overflow: hidden;
         }
-        .sidebar-brand .brand-logo svg { width: 26px; height: 26px; }
+        .sidebar-brand .brand-logo img { width: 100%; height: 100%; object-fit: cover; }
         .sidebar-brand .brand-text { line-height: 1.25; }
         .sidebar-brand .brand-text b { display: block; color: #ffffff; font-size: 0.95rem; letter-spacing: .3px; }
         .sidebar-brand .brand-text small { color: #8aa4af; font-size: 0.68rem; }
@@ -287,9 +295,7 @@
         <section class="sidebar">
             <div class="sidebar-brand">
                 <div class="brand-logo">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-6"/>
-                    </svg>
+                    <img src="/static/vendor/img/banner-header.jpeg" alt="Logo">
                 </div>
                 <div class="brand-text">
                     <b>Monitoring Bantek</b>
@@ -298,8 +304,9 @@
             </div>
 
             <div class="user-panel">
-                <div class="pull-left image">
-                    <span class="img-circle bg-success" style="padding:10px;">MN</span>
+                <div class="pull-left image" style="position:relative;width:38px;height:38px">
+                    <span class="img-circle bg-success" style="width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">MN</span>
+                    <img src="/static/vendor/img/avatar-user.jpeg" alt="" style="position:absolute;top:0;left:0;width:38px;height:38px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,.25)" onerror="this.remove()">
                 </div>
                 <div class="pull-left info">
                     <p>Muslim Nugraha</p>
@@ -309,8 +316,8 @@
 
             <form class="sidebar-form" action="#" onsubmit="return false">
                 <div class="input-group">
-                    <input type="text" placeholder="Search...">
-                    <button type="submit" title="Cari"><i class="fa fa-search"></i></button>
+                    <input type="text" placeholder="Cari laporan..." id="sideSearch">
+                    <button type="submit" title="Cari" id="sideSearchBtn"><i class="fa fa-search"></i></button>
                 </div>
             </form>
 
@@ -331,11 +338,7 @@
 
     <div class="header" style="margin-left:230px">
         <button class="sidebar-toggle-btn" id="sidebarToggle" title="Toggle Sidebar"><i class="fa fa-bars"></i></button>
-        <div class="logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-6"/>
-            </svg>
-        </div>
+        <div class="logo"><img src="/static/vendor/img/banner-header.jpeg" alt="Logo"></div>
         <div class="header-text">
             <h1>Monitoring Laporan Bantuan Teknis UPJKP</h1>
             <div class="subtitle">Urusan Pelayanan Jasa Konsultansi dan Pelatihan — PTPN IV</div>
@@ -362,11 +365,7 @@
 
                 <div class="quick-row">
                     <select id="fRegional"></select>
-                    <select id="fTahun">
-                        <option value="2024">2024</option>
-                        <option value="2025">2025</option>
-                        <option value="2026">2026</option>
-                    </select>
+                    <input type="text" id="fTahun" list="tahunOptions" placeholder="cth: 2026" inputmode="numeric" title="Ketik tahun (cth 2027)">
                 </div>
                 <div class="quick-row">
                     <input type="text" id="fKebun" placeholder="Kebun / lokasi *">
@@ -384,7 +383,11 @@
                         <div class="fg"><label>Perusahaan</label><input type="text" id="fPerusahaan"></div>
                         <div class="fg"><label>Petugas</label><input type="text" id="fPetugas"></div>
                         <div class="fg"><label>Tanggal Kunjungan</label><input type="text" id="fTglKunjungan" placeholder="cth: 22-24 Apr 2025"></div>
-                        <div class="fg"><label>Korektor (pisahkan ';')</label><input type="text" id="fKorektor"></div>
+                        <div class="fg"><label>Draft Masuk</label><input type="text" id="fDraftMasuk" placeholder="cth: 12-05-2025"></div>
+                        <div class="fg"><label>Draft Korektor</label><input type="text" id="fDraftKorektor"></div>
+                        <div class="fg"><label>Revisi</label><input type="text" id="fRevisi"></div>
+                        <div class="fg"><label>Cetak</label><input type="text" id="fCetak"></div>
+                        <div class="fg"><label>Korektor (pisahkan ';')</label><input type="text" id="fKorektor" list="korektorOptions"></div>
                         <div class="fg"><label>Kode Laporan (otomatis)</label><input type="text" id="fKode"></div>
                         <div class="fg"><label>Sudah Dikirim</label><input type="text" id="fSudahDikirim" placeholder="cth: 12 Mei 2025"></div>
                         <div class="fg full"><label>Folder Laporan</label><input type="text" id="fFolder" placeholder="Path/URL folder laporan"></div>
@@ -422,11 +425,11 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Kode</th><th>Regional</th><th>Kebun</th><th>Tahun</th><th>Status</th><th style="text-align:center">Aksi</th>
+                                <th>Kode</th><th>Regional</th><th>Kebun</th><th>Kegiatan</th><th>Tahun</th><th>Tgl Kunjungan</th><th>Durasi (hari)</th><th>Status</th><th>Korektor</th><th style="text-align:center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="listBody">
-                            <tr><td colspan="6" style="text-align:center;padding:22px;color:#6c757d">Memuat data...</td></tr>
+                            <tr><td colspan="10" style="text-align:center;padding:22px;color:#6c757d">Memuat data...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -479,7 +482,15 @@
         <!-- ======== VIEW : DASHBOARD ======== -->
         <div class="view" id="view-dashboard">
             <div class="panel">
-                <div class="panel-title">Ringkasan <button class="btn btn-teal btn-sm" onclick="refreshData()">⟳ Refresh</button></div>
+                <div class="panel-title">
+                    <span>Ringkasan</span>
+                    <span style="display:flex;gap:6px;align-items:center">
+                        <select id="dashYear" onchange="setDashYear(this.value)" title="Filter tahun di dashboard" style="padding:5px 8px;border-radius:4px;border:1px solid #ced4da;background:#ffffff;color:#212529;font-size:0.74rem"></select>
+                        <span id="syncBadge" title="Status sinkronisasi database vs Excel" style="font-size:0.7rem;padding:3px 9px;border-radius:4px;background:#e9ecef;color:#495057;font-weight:700;text-transform:none;letter-spacing:0">Memeriksa sinkron...</span>
+                        <button class="btn btn-teal btn-sm" onclick="syncFromExcel()">⇄ Sync Excel</button>
+                        <button class="btn btn-outline btn-sm" onclick="refreshData()">⟳ Refresh</button>
+                    </span>
+                </div>
                 <div class="summary-cards">
                     <div class="stat-card stat-total"><div class="lab">Total</div><div class="val" id="totalValue">-</div><div class="sub">laporan</div></div>
                     <div class="stat-card stat-selesai"><div class="lab">Selesai</div><div class="val" id="selesaiValue">-</div><div class="sub" id="selesaiSub">-</div></div>
@@ -496,6 +507,23 @@
                 <div class="chart-card"><h4>Kategori Kegiatan</h4><div class="box"><canvas id="chartKegiatan"></canvas></div></div>
                 <div class="chart-card"><h4>Kinerja Korektor</h4><div class="box"><canvas id="chartKorektor"></canvas></div></div>
                 <div class="chart-card wide"><h4>Sebaran Korektor per Regional</h4><div class="box"><canvas id="chartKorektorRegional"></canvas></div></div>
+                <div class="chart-card wide"><h4>Progres Tahapan Koreksi (per Regional)</h4><div class="box"><canvas id="chartTahap"></canvas></div></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Matriks Selesai per Tahun per Regional (Selesai / Total)</div>
+                <div class="table-wrap" style="max-height:none">
+                    <table class="data-table">
+                        <thead>
+                            <tr id="matriksHead">
+                                <th>Regional</th><th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matriksBody">
+                            <tr><td colspan="5" style="text-align:center;padding:18px;color:#6c757d">Memuat...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="panel">
@@ -517,6 +545,17 @@
         </div>
     </div>
 
+    <!-- DETAIL MODAL -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal" style="width:580px;max-width:94%;max-height:86vh;overflow-y:auto">
+            <h3 id="detailTitle">Detail Laporan</h3>
+            <div id="detailContent" style="font-size:0.78rem"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+                <button class="btn btn-dark" onclick="closeDetail()">Tutup</button>
+            </div>
+        </div>
+    </div>
+
     <!-- CONFIRM MODAL -->
     <div class="modal-overlay" id="confirmModal">
         <div class="modal">
@@ -530,6 +569,9 @@
     </div>
 
     <div class="toast" id="toast"></div>
+
+    <datalist id="korektorOptions"></datalist>
+    <datalist id="tahunOptions"></datalist>
 
     <script src="/static/dashboard.js"></script>
     <script src="/static/data.js"></script>

@@ -194,6 +194,82 @@ def load_from_excel(path):
     return records, assignments, index_records, sorted(korektor_master)
 
 
+def build_lookup(assignments):
+    lookup = {}
+    for a in assignments:
+        lookup.setdefault((a['regional'], a['no']), []).extend(a['items'])
+    return lookup
+
+
+def excel_summary(path):
+    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+    out = {}
+    for sheet_name, regional_name in DATA_SHEETS.items():
+        if sheet_name not in wb.sheetnames:
+            continue
+        ws = wb[sheet_name]
+        total = 0
+        selesai = 0
+        for row in ws.iter_rows(min_row=4, min_col=1, max_col=28, values_only=True):
+            no, kebun, ab = row[0], row[2], row[27]
+            if no is not None and kebun and clean(kebun):
+                total += 1
+                if ab is not None and str(ab).strip():
+                    selesai += 1
+        out[regional_name] = {'total': total, 'selesai': selesai}
+
+    index_count = 0
+    if INDEX_SHEET in wb.sheetnames:
+        ws = wb[INDEX_SHEET]
+        start_row = 2 if clean(ws.cell(row=1, column=1).value).lower() == 'folder' else 1
+        for row_idx in range(start_row, ws.max_row + 1):
+            if clean(ws.cell(row=row_idx, column=1).value):
+                index_count += 1
+    wb.close()
+    return out, index_count
+
+
+def db_summary():
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT regional, COUNT(*) c, "
+            "SUM(CASE WHEN sudah_dikirim IS NOT NULL AND sudah_dikirim!='' THEN 1 ELSE 0 END) s "
+            "FROM laporan GROUP BY regional").fetchall()
+        out = {r['regional']: {'total': r['c'], 'selesai': r['s'] or 0} for r in rows}
+        idx = conn.execute("SELECT COUNT(*) c FROM index_laporan").fetchone()['c']
+        return out, idx
+    finally:
+        conn.close()
+
+
+def compare_report(path):
+    ecc, eidx = excel_summary(path)
+    dcc, didx = db_summary()
+    detail = {}
+    for reg in DATA_SHEETS.values():
+        e = ecc.get(reg, {'total': 0, 'selesai': 0})
+        d = dcc.get(reg, {'total': 0, 'selesai': 0})
+        detail[reg] = {
+            'excel_total': e['total'], 'db_total': d['total'],
+            'excel_selesai': e['selesai'], 'db_selesai': d['selesai'],
+            'match': e['total'] == d['total'] and e['selesai'] == d['selesai'],
+        }
+    match = all(v['match'] for v in detail.values()) and \
+        sum(v['total'] for v in ecc.values()) == sum(v['total'] for v in dcc.values()) and \
+        eidx == didx
+    return {
+        'file': os.path.basename(path),
+        'file_mtime': datetime.datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S'),
+        'excel_total': sum(v['total'] for v in ecc.values()),
+        'db_total': sum(v['total'] for v in dcc.values()),
+        'excel_index': eidx,
+        'db_index': didx,
+        'match': match,
+        'detail': detail,
+    }
+
+
 def rebuild_db(records, assignments, index_records, korektor_master):
     conn = get_connection()
     try:
@@ -234,7 +310,14 @@ def rebuild_db(records, assignments, index_records, korektor_master):
                 )
             inserted += 1
 
-        for name in korektor_master:
+        keep = set(korektor_master)
+        for r in conn.execute("SELECT DISTINCT nama FROM korektor_assignment"):
+            keep.add(r['nama'])
+        for r in conn.execute("SELECT DISTINCT korektor FROM laporan WHERE korektor IS NOT NULL AND korektor != ''"):
+            for name in [n.strip() for n in str(r['korektor']).split(';') if n.strip()]:
+                keep.add(name)
+        conn.execute("DELETE FROM korektor_master")
+        for name in sorted(keep):
             conn.execute("INSERT OR IGNORE INTO korektor_master (nama) VALUES (?)", (name,))
 
         for it in index_records:
@@ -249,38 +332,48 @@ def rebuild_db(records, assignments, index_records, korektor_master):
         conn.close()
 
 
+def import_from_excel(path):
+    backup = backup_db()
+    init_db()
+    migrate_db()
+    records, assignments, index_records, korektor_master = load_from_excel(path)
+    lookup = build_lookup(assignments)
+    for r in records:
+        r['kode_laporan'] = ''
+    inserted = rebuild_db(records, lookup, index_records, korektor_master)
+    return {
+        'inserted': inserted,
+        'korektor': len(korektor_master),
+        'index': len(index_records),
+        'backup': os.path.basename(backup) if backup else None,
+    }
+
+
 def main():
     path = EXCEL_PATH
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1] != '--sync':
         path = sys.argv[1]
 
     print("=" * 60)
     print("Import data dari %s" % os.path.basename(path))
     print("=" * 60)
 
-    backup = backup_db()
-    if backup:
-        print("  Backup DB  : %s" % os.path.basename(backup))
+    before = compare_report(path) if os.path.exists(DB_PATH) else None
+
+    result = import_from_excel(path)
+
+    after = compare_report(path)
+    print("  Backup DB   : %s" % (result['backup'] or '(tidak ada)'))
+    print("  Laporan     : %d data" % result['inserted'])
+    print("  Korektor    : %d nama" % result['korektor'])
+    print("  Index folder: %d baris" % result['index'])
+    print("=" * 60)
+    if before and not before.get('match'):
+        print("Peringatan: sebelum sync, data DB berbeda dari Excel.")
+    if after.get('match'):
+        print("Status     : DATABASE SINKRON DENGAN EXCEL [OK]")
     else:
-        print("  Backup DB  : (tidak ada DB lama)")
-
-    init_db()
-    migrate_db()
-
-    print("  Membaca file Excel...")
-    records, assignments, index_records, korektor_master = load_from_excel(path)
-    print("    laporan      : %d" % len(records))
-    print("    korektor     : %d nama" % len(korektor_master))
-    print("    index folder : %d baris" % len(index_records))
-
-    lookup = {}
-    for a in assignments:
-        lookup.setdefault((a['regional'], a['no']), []).extend(a['items'])
-    for r in records:
-        r['kode_laporan'] = ''
-
-    inserted = rebuild_db(records, lookup, index_records, korektor_master)
-    print("  Berhasil import %d laporan ke SQLite." % inserted)
+        print("Status     : MASIH ADA PERBEDAAN - periksa laporan per regional")
     print("Selesai. Jalankan: python app.py")
 
 
